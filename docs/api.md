@@ -82,6 +82,71 @@ Réponse :
 Notes :
 - si un module nécessite des credentials (ex: GitHub), `sync` peut être un no-op tant que la config n’est pas fournie.
 
+### Lire la configuration d’un module
+
+- `GET /api/modules/{module_id}/config`
+
+Réponse :
+
+```json
+{
+  "module_id": "github",
+  "config_json": {
+    "provider": "api",
+    "username": "octocat",
+    "token": "ghp_..."
+  }
+}
+```
+
+### Sauver (upsert) la configuration d’un module
+
+- `POST /api/modules/{module_id}/config`
+
+Payload :
+
+```json
+{
+  "config_json": {
+    "provider": "api",
+    "username": "octocat",
+    "token": "ghp_..."
+  }
+}
+```
+
+Réponse :
+
+```json
+{"status":"ok"}
+```
+
+Notes :
+- pour `github`:
+  - `provider` ∈ `api` | `hpi` (défaut: `api`)
+  - si `provider=api`: `username` requis, `token` optionnel
+  - si `provider=hpi`: les credentials sont gérés par HPI, `username`/`token` ne sont pas requis
+
+### Tester une configuration module (wizard)
+
+- `POST /api/modules/{module_id}/test`
+
+Payload :
+
+```json
+{
+  "config_json": {
+    "provider": "hpi"
+  }
+}
+```
+
+Réponse :
+
+```json
+{"status":"ok"}
+```
+
 ## Dashboards
 
 ### Récupérer un dashboard

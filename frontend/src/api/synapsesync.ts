@@ -19,6 +19,11 @@ export type ModuleInfo = {
   widgets: Omit<WidgetDescriptor, 'module_id'>[]
 }
 
+export type ModuleConfig = {
+  module_id: string
+  config_json: Record<string, unknown>
+}
+
 export type DashboardWidgetRef = {
   module_id: string
   widget_id: string
@@ -76,5 +81,23 @@ export async function saveDashboard(dashboardId: string, config: DashboardConfig
 export async function syncModule(moduleId: string): Promise<{ status: string }> {
   return apiFetch<{ status: string }>(`/api/modules/${encodeURIComponent(moduleId)}/sync`, {
     method: 'POST',
+  })
+}
+
+export async function getModuleConfig(moduleId: string): Promise<ModuleConfig> {
+  return apiFetch<ModuleConfig>(`/api/modules/${encodeURIComponent(moduleId)}/config`)
+}
+
+export async function saveModuleConfig(moduleId: string, configJson: Record<string, unknown>): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(`/api/modules/${encodeURIComponent(moduleId)}/config`, {
+    method: 'POST',
+    body: JSON.stringify({ config_json: configJson }),
+  })
+}
+
+export async function testModuleConfig(moduleId: string, configJson: Record<string, unknown>): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(`/api/modules/${encodeURIComponent(moduleId)}/test`, {
+    method: 'POST',
+    body: JSON.stringify({ config_json: configJson }),
   })
 }

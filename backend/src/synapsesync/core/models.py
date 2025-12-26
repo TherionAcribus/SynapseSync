@@ -36,3 +36,15 @@ class Dashboard(Base):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),
     )
+
+
+class ModuleConfig(Base):
+    __tablename__ = "module_configs"
+
+    module_id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    config_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
+    )

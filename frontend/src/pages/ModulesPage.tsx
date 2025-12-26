@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 
-import { listModules, syncModule, type ModuleInfo } from '../api/synapsesync'
+import {
+  getModuleConfig,
+  listModules,
+  saveModuleConfig,
+  syncModule,
+  testModuleConfig,
+  type ModuleInfo,
+} from '../api/synapsesync'
 
 type ModuleState = {
   module: ModuleInfo
@@ -12,6 +19,68 @@ export default function ModulesPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [modules, setModules] = useState<ModuleState[]>([])
+
+  const [githubLoading, setGithubLoading] = useState(false)
+  const [githubSaving, setGithubSaving] = useState(false)
+  const [githubTesting, setGithubTesting] = useState(false)
+  const [githubProvider, setGithubProvider] = useState<'api' | 'hpi'>('api')
+  const [githubUsername, setGithubUsername] = useState('')
+  const [githubToken, setGithubToken] = useState('')
+  const [githubMsg, setGithubMsg] = useState<string | null>(null)
+  const [githubErr, setGithubErr] = useState<string | null>(null)
+
+  async function loadGithubConfig() {
+    setGithubLoading(true)
+    setGithubErr(null)
+    setGithubMsg(null)
+    try {
+      const res = await getModuleConfig('github')
+      const cfg = res.config_json ?? {}
+      setGithubProvider(cfg.provider === 'hpi' ? 'hpi' : 'api')
+      setGithubUsername(typeof cfg.username === 'string' ? cfg.username : '')
+      setGithubToken(typeof cfg.token === 'string' ? cfg.token : '')
+    } catch (e) {
+      setGithubErr(e instanceof Error ? e.message : 'Erreur')
+    } finally {
+      setGithubLoading(false)
+    }
+  }
+
+  async function onSaveGithub() {
+    setGithubSaving(true)
+    setGithubErr(null)
+    setGithubMsg(null)
+    try {
+      await saveModuleConfig('github', {
+        provider: githubProvider,
+        username: githubUsername,
+        token: githubToken,
+      })
+      setGithubMsg('Configuration sauvegardée')
+    } catch (e) {
+      setGithubErr(e instanceof Error ? e.message : 'Erreur')
+    } finally {
+      setGithubSaving(false)
+    }
+  }
+
+  async function onTestGithub() {
+    setGithubTesting(true)
+    setGithubErr(null)
+    setGithubMsg(null)
+    try {
+      await testModuleConfig('github', {
+        provider: githubProvider,
+        username: githubUsername,
+        token: githubToken,
+      })
+      setGithubMsg('Test OK')
+    } catch (e) {
+      setGithubErr(e instanceof Error ? e.message : 'Erreur')
+    } finally {
+      setGithubTesting(false)
+    }
+  }
 
   async function refresh() {
     setLoading(true)
@@ -45,6 +114,7 @@ export default function ModulesPage() {
 
   useEffect(() => {
     void refresh()
+    void loadGithubConfig()
   }, [])
 
   return (
@@ -78,6 +148,64 @@ export default function ModulesPage() {
                   {m.syncing ? 'Sync…' : 'Sync'}
                 </button>
               </div>
+
+              {m.module.id === 'github' ? (
+                <div style={{ marginTop: 12, borderTop: '1px solid #333', paddingTop: 12 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 6 }}>Configuration (V1)</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 520 }}>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span style={{ fontSize: 13, opacity: 0.85 }}>Source</span>
+                      <select
+                        value={githubProvider}
+                        onChange={(e) => setGithubProvider(e.target.value === 'hpi' ? 'hpi' : 'api')}
+                        disabled={githubLoading || githubSaving || githubTesting}
+                      >
+                        <option value="api">API GitHub (direct)</option>
+                        <option value="hpi">HPI (exporter)</option>
+                      </select>
+                    </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span style={{ fontSize: 13, opacity: 0.85 }}>GitHub username</span>
+                      <input
+                        value={githubUsername}
+                        onChange={(e) => setGithubUsername(e.target.value)}
+                        placeholder="ex: octocat"
+                        disabled={githubProvider === 'hpi' || githubLoading || githubSaving || githubTesting}
+                      />
+                    </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span style={{ fontSize: 13, opacity: 0.85 }}>Token (optionnel)</span>
+                      <input
+                        type="password"
+                        value={githubToken}
+                        onChange={(e) => setGithubToken(e.target.value)}
+                        placeholder="ghp_..."
+                        disabled={githubProvider === 'hpi' || githubLoading || githubSaving || githubTesting}
+                      />
+                      <span style={{ fontSize: 12, opacity: 0.7 }}>
+                        {githubProvider === 'hpi'
+                          ? 'En mode HPI, les identifiants sont gérés par la configuration HPI.'
+                          : 'Si vide, l’API publique est utilisée (peut être rate-limited).'}
+                      </span>
+                    </label>
+
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <button onClick={() => void loadGithubConfig()} disabled={githubLoading || githubSaving || githubTesting}>
+                        {githubLoading ? 'Chargement…' : 'Recharger'}
+                      </button>
+                      <button onClick={() => void onTestGithub()} disabled={githubLoading || githubSaving || githubTesting}>
+                        {githubTesting ? 'Test…' : 'Tester'}
+                      </button>
+                      <button onClick={() => void onSaveGithub()} disabled={githubLoading || githubSaving || githubTesting}>
+                        {githubSaving ? 'Sauvegarde…' : 'Sauver'}
+                      </button>
+                    </div>
+
+                    {githubErr ? <div style={{ color: '#b91c1c' }}>Erreur: {githubErr}</div> : null}
+                    {githubMsg ? <div style={{ color: '#16a34a' }}>{githubMsg}</div> : null}
+                  </div>
+                </div>
+              ) : null}
 
               {m.error ? (
                 <div style={{ marginTop: 10, color: '#b91c1c' }}>Erreur: {m.error}</div>
