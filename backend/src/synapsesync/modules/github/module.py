@@ -163,6 +163,11 @@ class GitHubModule:
                 title="Commit Streak",
                 visual_type="counter",
             ),
+            WidgetDescriptor(
+                id="languages_usage",
+                title="Languages Usage",
+                visual_type="pie",
+            ),
         ]
 
     async def get_widget_data(self, widget_id: str, params: dict[str, Any]) -> WidgetData:
@@ -225,6 +230,22 @@ class GitHubModule:
                     }
                 )
 
+            if widget_id == "languages_usage":
+                # Récupérer les langages utilisés dans les repos
+                username, token = self._get_credentials()
+                if not username:
+                    return WidgetData(visual_type="pie", data={"labels": [], "values": []})
+                
+                languages = await self._get_languages_usage(username, token)
+                
+                return WidgetData(
+                    visual_type="pie",
+                    data={
+                        "labels": list(languages.keys()),
+                        "values": list(languages.values())
+                    }
+                )
+
             return WidgetData(visual_type="unknown", data=None)
         finally:
             session.close()
@@ -268,3 +289,58 @@ class GitHubModule:
             current_date -= timedelta(days=1)
             
         return current_streak
+
+    async def _get_languages_usage(self, username: str, token: str) -> dict[str, int]:
+        """Récupère les langages utilisés dans les repos de l'utilisateur."""
+        from collections import Counter
+        
+        # Récupérer les repos de l'utilisateur
+        url = f"https://api.github.com/users/{username}/repos"
+        headers: dict[str, str] = {"Accept": "application/vnd.github+json"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        
+        async with httpx.AsyncClient(timeout=30) as client:
+            # Récupérer les 100 premiers repos (pagination possible si besoin)
+            resp = await client.get(url, headers=headers, params={"per_page": 100})
+            resp.raise_for_status()
+            repos = resp.json()
+        
+        # Compter les langages
+        language_counter = Counter()
+        
+        for repo in repos:
+            # Ignorer les forks
+            if repo.get("fork", False):
+                continue
+                
+            # Récupérer les langages du repo
+            languages_url = repo.get("languages_url")
+            if not languages_url:
+                continue
+                
+            try:
+                async with httpx.AsyncClient(timeout=30) as client:
+                    lang_resp = await client.get(languages_url, headers=headers)
+                    if lang_resp.status_code == 200:
+                        languages = lang_resp.json()
+                        # Ajouter les octets de chaque langage
+                        for lang, bytes_count in languages.items():
+                            language_counter[lang] += bytes_count
+            except Exception:
+                # Ignorer les erreurs pour les langages
+                continue
+        
+        # Convertir en pourcentages et limiter aux 10 premiers langages
+        total_bytes = sum(language_counter.values())
+        if total_bytes == 0:
+            return {}
+        
+        # Calculer les pourcentages et arrondir
+        languages_percent = {}
+        for lang, bytes_count in language_counter.most_common(10):
+            percent = round((bytes_count / total_bytes) * 100)
+            if percent > 0:  # Inclure seulement si > 0%
+                languages_percent[lang] = percent
+        
+        return languages_percent
